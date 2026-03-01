@@ -353,64 +353,6 @@ namespace raptor {
 
     //
     //
-    struct DepthPrePass : public FrameGraphRenderPass {
-        void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
-
-        void                    prepare_draws( RenderScene& scene, FrameGraph* frame_graph, Allocator* resident_allocator, StackAllocator* scratch_allocator );
-        void                    free_gpu_resources();
-
-        Array<MeshInstance>     mesh_instances;
-        Renderer*               renderer;
-    }; // struct DepthPrePass
-
-    //
-    //
-    struct GBufferPass : public FrameGraphRenderPass {
-        void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
-
-        void                    prepare_draws( RenderScene& scene, FrameGraph* frame_graph, Allocator* resident_allocator, StackAllocator* scratch_allocator );
-        void                    free_gpu_resources();
-
-        Array<MeshInstance>     mesh_instances;
-        Renderer*               renderer;
-    }; // struct GBufferPass
-
-    //
-    //
-    struct LighPass : public FrameGraphRenderPass {
-        void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
-
-        void                    prepare_draws( RenderScene& scene, FrameGraph* frame_graph, Allocator* resident_allocator, StackAllocator* scratch_allocator );
-        void                    upload_gpu_data();
-        void                    free_gpu_resources();
-
-        Mesh                    mesh;
-        Renderer*               renderer;
-        bool                    use_compute;
-
-        FrameGraphResource*     color_texture;
-        FrameGraphResource*     normal_texture;
-        FrameGraphResource*     roughness_texture;
-        FrameGraphResource*     depth_texture;
-        FrameGraphResource*     emissive_texture;
-
-        FrameGraphResource*     output_texture;
-    }; // struct LighPass
-
-    //
-    //
-    struct TransparentPass : public FrameGraphRenderPass {
-        void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
-
-        void                    prepare_draws( RenderScene& scene, FrameGraph* frame_graph, Allocator* resident_allocator, StackAllocator* scratch_allocator );
-        void                    free_gpu_resources();
-
-        Array<MeshInstance>     mesh_instances;
-        Renderer*               renderer;
-    }; // struct TransparentPass
-
-    //
-    //
     struct DebugPass : public FrameGraphRenderPass {
         void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
 
@@ -434,40 +376,6 @@ namespace raptor {
         Renderer*               renderer;
     }; // struct DebugPass
 
-    //
-    //
-    struct DoFPass : public FrameGraphRenderPass {
-
-        struct DoFData {
-            u32                 textures[ 4 ]; // diffuse, depth
-            float               znear;
-            float               zfar;
-            float               focal_length;
-            float               plane_in_focus;
-            float               aperture;
-        }; // struct DoFData
-
-        void                    add_ui() override;
-        void                    pre_render( u32 current_frame_index, CommandBuffer* gpu_commands, FrameGraph* frame_graph ) override;
-        void                    render( CommandBuffer* gpu_commands, RenderScene* render_scene ) override;
-        void                    on_resize( GpuDevice& gpu, u32 new_width, u32 new_height ) override;
-
-        void                    prepare_draws( RenderScene& scene, FrameGraph* frame_graph, Allocator* resident_allocator, StackAllocator* scratch_allocator );
-        void                    upload_gpu_data();
-        void                    free_gpu_resources();
-
-        Mesh                    mesh;
-        Renderer*               renderer;
-
-        TextureResource*        scene_mips[ k_max_frames ];
-        FrameGraphResource*     depth_texture;
-
-        float                   znear;
-        float                   zfar;
-        float                   focal_length;
-        float                   plane_in_focus;
-        float                   aperture;
-    }; // struct DoFPass
 
     //
     //
@@ -525,11 +433,6 @@ namespace raptor {
         RenderScene*            scene;
 
         // Render passes
-        DepthPrePass            depth_pre_pass;
-        GBufferPass             gbuffer_pass;
-        LighPass                light_pass;
-        TransparentPass         transparent_pass;
-        DoFPass                 dof_pass;
         DebugPass               debug_pass;
 
         // Fullscreen data
