@@ -675,13 +675,6 @@ void ObjScene::prepare_draws( Renderer* renderer, StackAllocator* scratch_alloca
     path_buffer.init( 1024, scratch_allocator );
 
     // Create material
-    const u64 main_hashed_name = hash_calculate( "main" );
-    GpuTechnique* main_technique = renderer->resource_cache.techniques.get( main_hashed_name );
-
-    MaterialCreation material_creation;
-    material_creation.set_name( "material_no_cull_opaque" ).set_technique( main_technique ).set_render_index( 0 );
-
-    Material* pbr_material = renderer->create_material( material_creation );
 
     const u64 cloth_hashed_name = hash_calculate( "cloth" );
     GpuTechnique* cloth_technique = renderer->resource_cache.techniques.get( cloth_hashed_name );
@@ -714,30 +707,16 @@ void ObjScene::prepare_draws( Renderer* renderer, StackAllocator* scratch_alloca
         mesh.index_buffer = gpu_buffers[ buffer_index_offset + 4 ].handle;
 
         mesh.scene_graph_node_index = 0;
-        mesh.pbr_material.material = pbr_material;
-
-        mesh.pbr_material.flags |= DrawFlags_Phong;
-        if ( mesh.pbr_material.diffuse_colour.w < 1.0f ) {
-            mesh.pbr_material.flags |= DrawFlags_Transparent;
-        }
-
-        // Descriptor set
-        const u32 pass_index = mesh.has_skinning() ? 5 : 3;
-
-        DescriptorSetCreation ds_creation{};
-        DescriptorSetLayoutHandle main_layout = renderer->gpu->get_descriptor_set_layout( mesh.pbr_material.material->technique->passes[ pass_index ].pipeline, k_material_descriptor_set_index );
-        ds_creation.reset().buffer( scene_cb, 0 ).buffer( mesh.pbr_material.material_buffer, 2 ).set_layout( main_layout );
-        mesh.pbr_material.descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
 
         if ( mesh.physics_mesh != nullptr ) {
+            DescriptorSetCreation ds_creation{};
+
             DescriptorSetLayoutHandle physics_layout = renderer->gpu->get_descriptor_set_layout( cloth_technique->passes[ 0 ].pipeline, k_material_descriptor_set_index );
             ds_creation.reset().buffer( physics_cb, 0 ).buffer( mesh.physics_mesh->gpu_buffer, 1 ).buffer( mesh.position_buffer, 2 ).buffer( mesh.normal_buffer, 3 ).buffer( mesh.index_buffer, 4 ).set_layout( physics_layout );
-
             mesh.physics_mesh->descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
 
             DescriptorSetLayoutHandle debug_mesh_layout = renderer->gpu->get_descriptor_set_layout( debug_technique->passes[ 0 ].pipeline, k_material_descriptor_set_index );
             ds_creation.reset().buffer(scene_cb, 0).buffer( mesh.physics_mesh->gpu_buffer, 1 ).set_layout( debug_mesh_layout );
-
             mesh.physics_mesh->debug_mesh_descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
         }
     }

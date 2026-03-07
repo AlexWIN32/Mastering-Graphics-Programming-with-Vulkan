@@ -146,7 +146,6 @@ int main( int argc, char** argv ) {
     frame_graph.init( &frame_graph_builder );
 
     RenderResourcesLoader render_resources_loader;
-    TextureResource* dither_texture = nullptr;
 
     sizet scratch_marker = scratch_allocator.get_marker();
 
@@ -162,29 +161,11 @@ int main( int argc, char** argv ) {
 
         render_resources_loader.init( &renderer, &scratch_allocator, &frame_graph );
 
-        // TODO: add this to render graph itself.
-        // Add utility textures (dithering, ...)
-        temporary_name_buffer.clear();
-        cstring dither_texture_path = temporary_name_buffer.append_use_f( "%s/BayerDither4x4.png", RAPTOR_DATA_FOLDER );
-        dither_texture = render_resources_loader.load_texture( dither_texture_path, false );
-
         // Parse techniques
         GpuTechniqueCreation gtc;
         temporary_name_buffer.clear();
         cstring full_screen_pipeline_path = temporary_name_buffer.append_use_f( "%s/%s", RAPTOR_SHADER_FOLDER, "fullscreen.json" );
         render_resources_loader.load_gpu_technique( full_screen_pipeline_path );
-
-        temporary_name_buffer.clear();
-        cstring main_pipeline_path = temporary_name_buffer.append_use_f( "%s/%s", RAPTOR_SHADER_FOLDER, "main.json" );
-        render_resources_loader.load_gpu_technique( main_pipeline_path );
-
-        temporary_name_buffer.clear();
-        cstring pbr_pipeline_path = temporary_name_buffer.append_use_f( "%s/%s", RAPTOR_SHADER_FOLDER, "pbr_lighting.json" );
-        render_resources_loader.load_gpu_technique( pbr_pipeline_path );
-
-        temporary_name_buffer.clear();
-        cstring dof_pipeline_path = temporary_name_buffer.append_use_f( "%s/%s", RAPTOR_SHADER_FOLDER, "dof.json" );
-        render_resources_loader.load_gpu_technique( dof_pipeline_path );
 
         temporary_name_buffer.clear();
         cstring cloth_pipeline_path = temporary_name_buffer.append_use_f( "%s/%s", RAPTOR_SHADER_FOLDER, "cloth.json" );
@@ -412,7 +393,7 @@ int main( int argc, char** argv ) {
                 gpu_scene_data->light_position = vec4s{ light_position.x, light_position.y, light_position.z, 1.0f };
                 gpu_scene_data->light_range = light_radius;
                 gpu_scene_data->light_intensity = light_intensity;
-                gpu_scene_data->dither_texture_index = dither_texture ? dither_texture->handle.index : 0;
+                gpu_scene_data->dither_texture_index = 0;
 
                 gpu.unmap_buffer( scene_cb_map );
             }
