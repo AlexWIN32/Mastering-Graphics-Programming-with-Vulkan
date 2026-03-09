@@ -90,7 +90,8 @@ void PhysicsVertex::add_joint( u32 vertex_index ) {
 // DebugPass ////////////////////////////////////////////////////////
 void DebugPass::render( CommandBuffer* gpu_commands, RenderScene* render_scene ) {
 
-    PipelineHandle pipeline = renderer->get_pipeline( debug_material, 0 );
+    const int debugVertexPosPass = 0;
+    PipelineHandle pipeline = renderer->get_pipeline( debug_material, debugVertexPosPass );
 
     gpu_commands->bind_pipeline( pipeline );
 
@@ -104,13 +105,15 @@ void DebugPass::render( CommandBuffer* gpu_commands, RenderScene* render_scene )
             gpu_commands->bind_vertex_buffer( sphere_mesh_buffer->handle, 0, 0 );
             gpu_commands->bind_index_buffer( sphere_mesh_indices->handle, 0, VK_INDEX_TYPE_UINT32 );
 
-            gpu_commands->bind_descriptor_set( &physics_mesh->debug_mesh_descriptor_set, 1, nullptr, 0 );
+            gpu_commands->bind_descriptor_set( &physics_mesh->debug_simulation_descriptor_set, 1, nullptr, 0 );
 
-            gpu_commands->draw_indexed( TopologyType::Triangle, sphere_index_count, physics_mesh->vertices.size, 0, 0, 0 );
+            const int debugSpheresCount = physics_mesh->vertices.size;
+            gpu_commands->draw_indexed( TopologyType::Triangle, sphere_index_count, debugSpheresCount, 0, 0, 0 );
         }
     }
 
-    pipeline = renderer->get_pipeline( debug_material, 1 );
+    const int debugJointsPass = 1;
+    pipeline = renderer->get_pipeline( debug_material, debugJointsPass);
 
     gpu_commands->bind_pipeline( pipeline );
 
@@ -121,7 +124,7 @@ void DebugPass::render( CommandBuffer* gpu_commands, RenderScene* render_scene )
         if ( mesh.physics_mesh != nullptr ) {
             PhysicsMesh* physics_mesh = mesh.physics_mesh;
 
-            gpu_commands->bind_descriptor_set( &physics_mesh->debug_mesh_descriptor_set, 1, nullptr, 0 );
+            gpu_commands->bind_descriptor_set( &physics_mesh->debug_simulation_descriptor_set, 1, nullptr, 0 );
 
             gpu_commands->draw_indirect( physics_mesh->draw_indirect_buffer, physics_mesh->vertices.size, 0, sizeof( VkDrawIndirectCommand  ) );
         }
@@ -417,7 +420,7 @@ CommandBuffer* RenderScene::update_physics( f32 delta_time, f32 air_density, f32
                 cb->bind_pipeline( cloth_technique->passes[ 0 ].pipeline );
             }
 
-            cb->bind_descriptor_set( &physics_mesh->descriptor_set, 1, nullptr, 0 );
+            cb->bind_descriptor_set( &physics_mesh->update_simulation_descriptor_set, 1, nullptr, 0 );
 
             // TODO(marco): submit all meshes at once
             cb->dispatch( 1, 1, 1 );

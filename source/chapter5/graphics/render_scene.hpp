@@ -184,8 +184,8 @@ namespace raptor {
 
         BufferHandle            gpu_buffer;
         BufferHandle            draw_indirect_buffer;
-        DescriptorSetHandle     descriptor_set;
-        DescriptorSetHandle     debug_mesh_descriptor_set;
+        DescriptorSetHandle     update_simulation_descriptor_set;
+        DescriptorSetHandle     debug_simulation_descriptor_set;
     };
 
     //

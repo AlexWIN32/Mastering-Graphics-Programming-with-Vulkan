@@ -78,57 +78,6 @@ void ObjScene::init( cstring filename, cstring path, Allocator* resident_allocat
 
     images.init( resident_allocator, 1024 );
 
-    Array<PBRMaterial> materials;
-    materials.init( resident_allocator, assimp_scene->mNumMaterials );
-
-    for ( u32 material_index = 0; material_index < assimp_scene->mNumMaterials; ++material_index ) {
-        aiMaterial* material = assimp_scene->mMaterials[ material_index ];
-
-        PBRMaterial raptor_material{ };
-
-        aiString texture_file;
-
-        if( aiGetMaterialString( material, AI_MATKEY_TEXTURE( aiTextureType_DIFFUSE, 0 ), &texture_file ) == AI_SUCCESS ) {
-            raptor_material.diffuse_texture_index = load_texture( texture_file.C_Str(), path, temp_allocator );
-        } else {
-            raptor_material.diffuse_texture_index = k_invalid_scene_texture_index;
-        }
-
-        if( aiGetMaterialString( material, AI_MATKEY_TEXTURE( aiTextureType_NORMALS, 0 ), &texture_file ) == AI_SUCCESS )
-        {
-            raptor_material.normal_texture_index = load_texture( texture_file.C_Str(), path, temp_allocator );
-        } else {
-            raptor_material.normal_texture_index = k_invalid_scene_texture_index;
-        }
-
-        raptor_material.roughness_texture_index = k_invalid_scene_texture_index;
-        raptor_material.occlusion_texture_index = k_invalid_scene_texture_index;
-
-        aiColor4D color;
-        if ( aiGetMaterialColor( material, AI_MATKEY_COLOR_DIFFUSE, &color ) == AI_SUCCESS ) {
-            raptor_material.diffuse_colour = { color.r, color.g, color.b, 1.0f };
-        }
-
-        if ( aiGetMaterialColor( material, AI_MATKEY_COLOR_AMBIENT, &color ) == AI_SUCCESS ) {
-            raptor_material.ambient_colour = { color.r, color.g, color.b };
-        }
-
-        if ( aiGetMaterialColor( material, AI_MATKEY_COLOR_SPECULAR, &color ) == AI_SUCCESS ) {
-            raptor_material.specular_colour = { color.r, color.g, color.b };
-        }
-
-        float f_value;
-        if ( aiGetMaterialFloat( material, AI_MATKEY_SHININESS, &f_value ) == AI_SUCCESS ) {
-            raptor_material.specular_exp = f_value;
-        }
-
-        if ( aiGetMaterialFloat( material, AI_MATKEY_OPACITY, &f_value ) == AI_SUCCESS ) {
-            raptor_material.diffuse_colour.w = f_value;
-        }
-
-        materials.push( raptor_material );
-    }
-
     i64 end_loading_textures_files = time_now();
 
     i64 end_creating_textures = time_now();
@@ -376,18 +325,6 @@ void ObjScene::init( cstring filename, cstring path, Allocator* resident_allocat
 
         render_mesh.physics_mesh = physics_mesh;
 
-        render_mesh.pbr_material = materials[ mesh->mMaterialIndex ];
-        render_mesh.pbr_material.flags = DrawFlags_HasNormals;
-        render_mesh.pbr_material.flags |= DrawFlags_HasTangents;
-        render_mesh.pbr_material.flags |= DrawFlags_HasTexCoords;
-
-        {
-            BufferCreation creation{ };
-            creation.set( VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, ResourceUsageType::Dynamic, sizeof( GpuMeshData ) ).set_name( "mesh_data" );
-
-            render_mesh.pbr_material.material_buffer = renderer->gpu->create_buffer( creation );
-        }
-
         // Physics data
         {
             BufferCreation creation{ };
@@ -447,11 +384,9 @@ void ObjScene::init( cstring filename, cstring path, Allocator* resident_allocat
             // NOTE(marco): indirect command data
             buffer_size = sizeof( VkDrawIndirectCommand ) * indirect_commands.size;
             creation.reset().set( VK_BUFFER_USAGE_TRANSFER_SRC_BIT, ResourceUsageType::Immutable, buffer_size ).set_data( indirect_commands.data ).set_name( "indirect_buffer_cpu" );
-
             cpu_buffer = renderer->gpu->create_buffer( creation );
 
             creation.reset().set( VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, ResourceUsageType::Immutable, buffer_size ).set_device_only( true ).set_name( "indirect_buffer_gpu" );
-
             gpu_buffer = renderer->create_buffer( creation );
             gpu_buffers.push( *gpu_buffer );
 
@@ -464,8 +399,6 @@ void ObjScene::init( cstring filename, cstring path, Allocator* resident_allocat
 
         meshes.push( render_mesh );
     }
-
-    materials.shutdown();
 
     VkBufferUsageFlags flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
@@ -619,14 +552,11 @@ void ObjScene::shutdown( Renderer* renderer ) {
     for ( u32 mesh_index = 0; mesh_index < meshes.size; ++mesh_index ) {
         Mesh& mesh = meshes[ mesh_index ];
 
-        gpu.destroy_buffer( mesh.pbr_material.material_buffer );
-        gpu.destroy_descriptor_set( mesh.pbr_material.descriptor_set );
-
         PhysicsMesh* physics_mesh = mesh.physics_mesh;
 
         if ( physics_mesh != nullptr ) {
-            gpu.destroy_descriptor_set( physics_mesh->descriptor_set );
-            gpu.destroy_descriptor_set( physics_mesh->debug_mesh_descriptor_set );
+            gpu.destroy_descriptor_set( physics_mesh->update_simulation_descriptor_set );
+            gpu.destroy_descriptor_set( physics_mesh->debug_simulation_descriptor_set );
 
             physics_mesh->vertices.shutdown();
 
@@ -712,12 +642,21 @@ void ObjScene::prepare_draws( Renderer* renderer, StackAllocator* scratch_alloca
             DescriptorSetCreation ds_creation{};
 
             DescriptorSetLayoutHandle physics_layout = renderer->gpu->get_descriptor_set_layout( cloth_technique->passes[ 0 ].pipeline, k_material_descriptor_set_index );
-            ds_creation.reset().buffer( physics_cb, 0 ).buffer( mesh.physics_mesh->gpu_buffer, 1 ).buffer( mesh.position_buffer, 2 ).buffer( mesh.normal_buffer, 3 ).buffer( mesh.index_buffer, 4 ).set_layout( physics_layout );
-            mesh.physics_mesh->descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
+            ds_creation.reset();
+            ds_creation.buffer( physics_cb, 0 );
+            ds_creation.buffer( mesh.physics_mesh->gpu_buffer, 1 );
+            ds_creation.buffer( mesh.position_buffer, 2 );
+            ds_creation.buffer( mesh.normal_buffer, 3 );
+            ds_creation.buffer( mesh.index_buffer, 4 );
+            ds_creation.set_layout( physics_layout );
+            mesh.physics_mesh->update_simulation_descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
 
-            DescriptorSetLayoutHandle debug_mesh_layout = renderer->gpu->get_descriptor_set_layout( debug_technique->passes[ 0 ].pipeline, k_material_descriptor_set_index );
-            ds_creation.reset().buffer(scene_cb, 0).buffer( mesh.physics_mesh->gpu_buffer, 1 ).set_layout( debug_mesh_layout );
-            mesh.physics_mesh->debug_mesh_descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
+            DescriptorSetLayoutHandle debug_simulation_layout = renderer->gpu->get_descriptor_set_layout( debug_technique->passes[ 0 ].pipeline, k_material_descriptor_set_index );
+            ds_creation.reset();
+            ds_creation.buffer(scene_cb, 0);
+            ds_creation.buffer( mesh.physics_mesh->gpu_buffer, 1 );
+            ds_creation.set_layout( debug_simulation_layout );
+            mesh.physics_mesh->debug_simulation_descriptor_set = renderer->gpu->create_descriptor_set( ds_creation );
         }
     }
 
